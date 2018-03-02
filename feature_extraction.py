@@ -77,7 +77,10 @@ data['app_id_numeric'] = np.where(data['app_id'] == 'ng.jiji.app', 1, 0)
 # фичи, используемые в модели
 data_to_model = data[['site_id_numeric', 'publisher_data_numeric', 'app_id_numeric', 'operator_numeric',
                       'city_numeric', 'device_type_numeric', 'os_version_numeric', 'sdk_version_numeric',
-                      'install_time', 'time_difference', 'wifi']]
+                      'install_time', 'time_difference', 'wifi', 'fraud_flag']]
+
+data_to_model.to_csv('data_to_model.csv', sep=',')
+
 print(data_to_model.info())
 
 #data = pd.get_dummies(data, columns=['category_id'], prefix=['category'])
