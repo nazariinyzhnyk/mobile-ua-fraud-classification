@@ -7,9 +7,10 @@ config = {
     'only_click_touch_type': False
 }
 
-data, data_valid, labels = load_data(valid_size=0.2)
+data, data_valid, labels = load_data(valid_size=0)
 labels = labels.rename(columns={'Publisher (media_source)': 'publisher_labels'})
 data = data.rename(columns={'publisher': 'publisher_data'})
+
 
 if config['only_click_touch_type']:
     data = data[data['attributed_touch_type'] == 'click']
@@ -17,16 +18,14 @@ if config['only_click_touch_type']:
 data['fraud_flag'] = data['Appsflyer_id'].notnull().astype(int)
 
 def set_time_features(data):
+    # scaler = MinMaxScaler()
     data['time_difference'] = (pd.to_datetime(data['install_time'])
                                - pd.to_datetime(data['attributed_touch_time'])).dt.total_seconds()
-    s = pd.datetime.now() - pd.to_datetime(data['install_time'])
-    data['install_time'] = s.dt.total_seconds()
 
-    scaler = MinMaxScaler()
-    data_numeric = data[['time_difference', 'install_time']]
-    data_numpy = scaler.fit_transform(data_numeric)
-    scaled_data = pd.DataFrame(data_numpy, index=data_numeric.index, columns=data_numeric.columns)
-    data[['time_difference', 'install_time']] = scaled_data
+    # data_numeric = data[['time_difference', 'install_time']]
+    # # data_numpy = scaler.fit_transform(data_numeric)
+    # scaled_data = pd.DataFrame(data_numpy, index=data_numeric.index, columns=data_numeric.columns)
+    # data[['time_difference', 'install_time']] = scaled_data
 
 set_time_features(data)
 
@@ -67,11 +66,13 @@ def set_fraud_rate_features(data):
     data = pd.merge(data, site_ratio, how='left', left_on='sdk_version', right_on='sdk_version')
     data['sdk_version_numeric'] = data['sdk_version_numeric'].fillna(mean_fraud)
 
-set_fraud_rate_features(data)
+# set_fraud_rate_features(data)
 
 data['app_id_numeric'] = np.where(data['app_id'] == 'ng.jiji.app', 1, 0)
 
-data_to_model = data[['site_id_numeric', 'publisher_data_numeric', 'app_id_numeric', 'operator_numeric',
-                      'city_numeric', 'device_type_numeric', 'os_version_numeric', 'sdk_version_numeric',
-                      'install_time', 'time_difference', 'wifi', 'fraud_flag']]
-data_to_model.to_csv('data_to_model.csv', sep=',')
+# data_to_model = data[['site_id_numeric', 'publisher_data_numeric', 'app_id_numeric', 'operator_numeric',
+#                       'city_numeric', 'device_type_numeric', 'os_version_numeric', 'sdk_version_numeric',
+#                       'install_time', 'time_difference', 'wifi', 'fraud_flag']]
+data_to_model = data[['time_difference', 'wifi', 'fraud_flag', 'os_version', 'device_type',
+                      'country_code', 'city', 'publisher_data', 'site_id']]
+data_to_model.to_csv('data_to_model.csv', sep=';', index=False, encoding='utf-8')
