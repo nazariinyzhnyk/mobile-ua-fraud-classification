@@ -1,78 +1,63 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
 from lib import load_data
 
 config = {
     'only_click_touch_type': False
 }
 
-data, data_valid, labels = load_data(valid_size=0)
-labels = labels.rename(columns={'Publisher (media_source)': 'publisher_labels'})
-data = data.rename(columns={'publisher': 'publisher_data'})
-
+data, data_valid, labels = load_data(valid_size=0.2)
+data['is_fraud'] = ~data['Fraud_reasons'].isnull()
+data_valid['is_fraud'] = ~data_valid['Fraud_reasons'].isnull()
 
 if config['only_click_touch_type']:
     data = data[data['attributed_touch_type'] == 'click']
 
-data['fraud_flag'] = data['Appsflyer_id'].notnull().astype(int)
-
-def set_time_features(data):
-    # scaler = MinMaxScaler()
+def set_time_features(data, data_valid):
     data['time_difference'] = (pd.to_datetime(data['install_time'])
                                - pd.to_datetime(data['attributed_touch_time'])).dt.total_seconds()
+    data_valid['time_difference'] = (pd.to_datetime(data_valid['install_time'])
+                               - pd.to_datetime(data_valid['attributed_touch_time'])).dt.total_seconds()
+    return data, data_valid
 
-    # data_numeric = data[['time_difference', 'install_time']]
-    # # data_numpy = scaler.fit_transform(data_numeric)
-    # scaled_data = pd.DataFrame(data_numpy, index=data_numeric.index, columns=data_numeric.columns)
-    # data[['time_difference', 'install_time']] = scaled_data
+data, data_valid = set_time_features(data, data_valid)
 
-set_time_features(data)
+def set_fraud_rate_feature(train_df, valid_df, column, mean_fraud):
+    rate_feature_column = column + '_fraud_rate'
+    site_ratio = train_df[['is_fraud', column]].groupby([column]).mean().reset_index().rename(
+        columns={'is_fraud': rate_feature_column})
+    train_df = pd.merge(train_df, site_ratio, how='left', on=column)
+    train_df[rate_feature_column] = train_df[rate_feature_column].fillna(mean_fraud)
 
-def set_fraud_rate_features(data):
-    mean_fraud = data['fraud_flag'].mean()
-    site_ratio = data[['fraud_flag', 'site_id']].groupby(['site_id']).mean().reset_index().rename(
-        columns={'fraud_flag': 'site_id_numeric'})
-    data = pd.merge(data, site_ratio, how='left', left_on='site_id', right_on='site_id')
-    data['site_id_numeric'] = data['site_id_numeric'].fillna(mean_fraud)
+    valid_df = pd.merge(valid_df, site_ratio, how='left', on=column)
+    valid_df[rate_feature_column] = valid_df[rate_feature_column].fillna(mean_fraud)
+    return train_df, valid_df
 
-    site_ratio = data[['fraud_flag', 'publisher_data']].groupby(['publisher_data']).mean().reset_index().rename(
-        columns={'fraud_flag': 'publisher_data_numeric'})
-    data = pd.merge(data, site_ratio, how='left', left_on='publisher_data', right_on='publisher_data')
-    data['publisher_data_numeric'] = data['publisher_data_numeric'].fillna(mean_fraud)
+def set_fraud_rate_features(data, data_valid, fraud_reason):
+    mean_fraud = data['is_fraud'].mean()
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'site_id', mean_fraud)
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'sub_site_id', mean_fraud)
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'publisher', mean_fraud)
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'operator', mean_fraud)
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'city', mean_fraud)
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'device_type', mean_fraud)
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'os_version', mean_fraud)
+    data, data_valid = set_fraud_rate_feature(data, data_valid, 'sdk_version', mean_fraud)
 
-    site_ratio = data[['operator', 'fraud_flag']].groupby('operator').mean().reset_index().rename(
-        columns={'fraud_flag': 'operator_numeric'})
-    data = pd.merge(data, site_ratio, how='left', left_on='operator', right_on='operator')
-    data['operator_numeric'] = data['operator_numeric'].fillna(mean_fraud)
+    return data, data_valid
 
-    site_ratio = data[['city', 'fraud_flag']].groupby('city').mean().reset_index().rename(
-        columns={'fraud_flag': 'city_numeric'})
-    data = pd.merge(data, site_ratio, how='left', left_on='city', right_on='city')
-    data['city_numeric'] = data['city_numeric'].fillna(mean_fraud)
+for fraud_reason in labels['Fraud_reasons'].values:
+    set_fraud_rate_features(data, data_valid, fraud_reason)
 
-    site_ratio = data[['device_type', 'fraud_flag']].groupby('device_type').mean().reset_index().rename(
-        columns={'fraud_flag': 'device_type_numeric'})
-    data = pd.merge(data, site_ratio, how='left', left_on='device_type', right_on='device_type')
-    data['device_type_numeric'] = data['device_type_numeric'].fillna(mean_fraud)
+data, data_valid = set_fraud_rate_features(data, data_valid)
 
-    site_ratio = data[['os_version', 'fraud_flag']].groupby('os_version').mean().reset_index().rename(
-        columns={'fraud_flag': 'os_version_numeric'})
-    data = pd.merge(data, site_ratio, how='left', left_on='os_version', right_on='os_version')
-    data['os_version_numeric'] = data['os_version_numeric'].fillna(mean_fraud)
 
-    site_ratio = data[['sdk_version', 'fraud_flag']].groupby('sdk_version').mean().reset_index().rename(
-        columns={'fraud_flag': 'sdk_version_numeric'})
-    data = pd.merge(data, site_ratio, how='left', left_on='sdk_version', right_on='sdk_version')
-    data['sdk_version_numeric'] = data['sdk_version_numeric'].fillna(mean_fraud)
+extracted_features_train = data[['is_fraud', 'site_id_fraud_rate', 'sub_site_id_fraud_rate', 'publisher_fraud_rate',
+                      'operator_fraud_rate', 'city_fraud_rate', 'device_type_fraud_rate', 'os_version_fraud_rate',
+                      'sdk_version_fraud_rate', 'time_difference']]
+extracted_features_train.to_csv('extracted_features_train.csv', sep=';', index=False, encoding='utf-8')
 
-# set_fraud_rate_features(data)
-
-data['app_id_numeric'] = np.where(data['app_id'] == 'ng.jiji.app', 1, 0)
-
-# data_to_model = data[['site_id_numeric', 'publisher_data_numeric', 'app_id_numeric', 'operator_numeric',
-#                       'city_numeric', 'device_type_numeric', 'os_version_numeric', 'sdk_version_numeric',
-#                       'install_time', 'time_difference', 'wifi', 'fraud_flag']]
-data_to_model = data[['time_difference', 'wifi', 'fraud_flag', 'os_version', 'device_type',
-                      'country_code', 'city', 'publisher_data', 'site_id']]
-data_to_model.to_csv('data_to_model.csv', sep=';', index=False, encoding='utf-8')
+extracted_features_valid = data_valid[['is_fraud', 'site_id_fraud_rate', 'sub_site_id_fraud_rate', 'publisher_fraud_rate',
+                      'operator_fraud_rate', 'city_fraud_rate', 'device_type_fraud_rate', 'os_version_fraud_rate',
+                      'sdk_version_fraud_rate', 'time_difference']]
+extracted_features_valid.to_csv('extracted_features_valid.csv', sep=';', index=False, encoding='utf-8')
