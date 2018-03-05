@@ -3,6 +3,7 @@ import numpy as np
 from lib import load_data
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
+import datetime
 
 config = {
     'only_click_touch_type': False,
@@ -43,6 +44,32 @@ def set_time_features(data, data_valid):
                                                         pd.to_datetime(
                                                             data_valid['attributed_touch_time'].dt.date)) / np.timedelta64(1,
                                                                                                                      's')
+
+    data['attributed_touch_time_date_hour'] = data['attributed_touch_time'].apply(
+        lambda dt: datetime.datetime(dt.year, dt.month, dt.day, dt.hour))
+    data_valid['attributed_touch_time_date_hour'] = data_valid['attributed_touch_time'].apply(
+        lambda dt: datetime.datetime(dt.year, dt.month, dt.day, dt.hour))
+    df = pd.DataFrame(index=data['attributed_touch_time_date_hour'].unique())
+    df['bot_frauds_per_hour'] = data.groupby('attributed_touch_time_date_hour')['Fraud_reasons'].agg({
+        'Fraud_reasons': lambda x: (x == 'bots').sum()})
+    df['tti_frauds_per_hour'] = data.groupby('attributed_touch_time_date_hour')['Fraud_reasons'].agg({
+        'Fraud_reasons': lambda x: (x == 'tti_fraud').sum()})
+    df['click_spamming_frauds_per_hour'] = data.groupby('attributed_touch_time_date_hour')['Fraud_reasons'].agg({
+        'Fraud_reasons': lambda x: (x == 'click_spamming').sum()})
+    df['mix_frauds_per_hour'] = data.groupby('attributed_touch_time_date_hour')['Fraud_reasons'].agg({
+        'Fraud_reasons': lambda x: (x == 'mix').sum()})
+    df['data_center_frauds_per_hour'] = data.groupby('attributed_touch_time_date_hour')['Fraud_reasons'].agg({
+        'Fraud_reasons': lambda x: (x == 'Data center').sum()})
+
+    # imitate real-life scenario -- we know only about events one hour ago
+    data['attributed_touch_time_date_hour'] = data['attributed_touch_time_date_hour'] - pd.DateOffset(hours=1)
+    data_valid['attributed_touch_time_date_hour'] = data_valid['attributed_touch_time_date_hour'] - pd.DateOffset(hours=1)
+    data = data.merge(df, left_on='attributed_touch_time_date_hour', right_index=True)
+    data_valid = data_valid.merge(df, left_on='attributed_touch_time_date_hour', right_index=True)
+
+    # data['attributed_touch_time_date_hour']  # + pd.DateOffset(hours=1)
+
+
     # data['tti_contributor1'] = (data['install_time']
     #                             - data_valid['contributor_1_touch_time']).dt.total_seconds()
     # data['tti_contributor2'] = (data['install_time']
@@ -56,13 +83,15 @@ def set_time_features(data, data_valid):
     #                             - data_valid['contributor_2_touch_time']).dt.total_seconds()
     # data_valid['tti_contributor3'] = (data_valid['install_time']
     #                             - data_valid['contributor_3_touch_time']).dt.total_seconds()
-    extracted_features_columns = np.array(['time_difference', 'install_time_since_midnight_sec', 'attributed_touch_time_since_midnight_sec'])
+    extracted_features_columns = np.array(['time_difference', 'install_time_since_midnight_sec', 'attributed_touch_time_since_midnight_sec',
+                                           'bot_frauds_per_hour', 'tti_frauds_per_hour', 'click_spamming_frauds_per_hour',
+                                           'mix_frauds_per_hour', 'data_center_frauds_per_hour'])
                                         # 'tti_contributor1', 'tti_contributor2', 'tti_contributor3'])
+
     return data, data_valid, extracted_features_columns
 
 def set_fraud_rate_feature(train_df, valid_df, column, mean_fraud, fraud_reason):
     rate_feature_column = column + '_' + fraud_reason + '_fraud_rate'
-    print(column)
     ratio = train_df[['Fraud_reasons', column]].groupby([column]).agg(
         lambda x: (x['Fraud_reasons'] == fraud_reason).sum()/len(x))
     ratio.rename(columns={'Fraud_reasons': rate_feature_column}, inplace=True)
@@ -70,7 +99,6 @@ def set_fraud_rate_feature(train_df, valid_df, column, mean_fraud, fraud_reason)
     train_df = pd.merge(train_df, ratio, how='left', left_on=column, right_index=True)
     train_df[rate_feature_column] = train_df[rate_feature_column].fillna(mean_fraud)
     # train_df[rate_feature_column] = train_df[rate_feature_column].fillna(0)
-
 
     valid_df = pd.merge(valid_df, ratio, how='left', left_on=column, right_index=True)
     valid_df[rate_feature_column] = valid_df[rate_feature_column].fillna(mean_fraud)
@@ -113,8 +141,8 @@ extracted_features_train.to_csv('extracted_features_train.csv', sep=';', index=F
 extracted_features_valid = data_valid[extracted_features_columns]
 extracted_features_valid.to_csv('extracted_features_valid.csv', sep=';', index=False, encoding='utf-8')
 
-time_features = np.concatenate((time_features, np.array(['Fraud_reasons'])))
-time_features_train = data[time_features]
-time_features_train.to_csv('time_features_train.csv', sep=';', index=False, encoding='utf-8')
-time_features_valid = data_valid[time_features]
-time_features_valid.to_csv('time_features_valid.csv', sep=';', index=False, encoding='utf-8')
+# time_features = np.concatenate((time_features, np.array(['Fraud_reasons'])))
+# time_features_train = data[time_features]
+# time_features_train.to_csv('time_features_train.csv', sep=';', index=False, encoding='utf-8')
+# time_features_valid = data_valid[time_features]
+# time_features_valid.to_csv('time_features_valid.csv', sep=';', index=False, encoding='utf-8')
