@@ -24,6 +24,13 @@ x_train = data_train.loc[:, data_train.columns != 'Fraud_reasons']
 x_valid = data_valid.loc[:, data_valid.columns != 'Fraud_reasons']
 x_valid = x_valid[x_train.columns]
 
+columns = ['install_time_weekday']
+le_dict = {col: LabelEncoder() for col in columns}
+for col in columns:
+    x_train[col] = le_dict[col].fit_transform(x_train[col])
+    x_valid[col] = le_dict[col].fit_transform(x_valid[col])
+
+
 
 model = lgb.LGBMClassifier(objective='multiclassova', learning_rate=0.02, n_estimators=400, num_iterations=500,
                            num_leaves=100, max_depth=7)
