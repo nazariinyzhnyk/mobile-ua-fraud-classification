@@ -8,7 +8,7 @@ from scipy.stats import multivariate_normal
 
 config = {
     'only_click_touch_type': False,
-    'standard_scale': False
+    'standard_scale': True
 }
 
 data, data_valid, labels = load_data(valid_size=0.2)
@@ -214,43 +214,44 @@ extracted_features_columns = np.concatenate((extracted_features_columns, cat_fea
 
 def set_distribution_features(data, data_valid):
     trustworthy_publisher_marker = (data['publisher'] == 'AX') | (data['publisher'] == 'AG')
+    features = ['tti']
     ok_mu, ok_sigma = estimateGaussian(
-        data.loc[trustworthy_publisher_marker, ['install_time_since_midnight_hours', 'tti']])
+        data.loc[trustworthy_publisher_marker, features])
     click_spamming_mu, click_spamming_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'click_spamming', ['install_time_since_midnight_hours', 'tti']])
+        data.loc[data['Fraud_reasons'] == 'click_spamming', features])
     bots_mu, bots_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'bots', ['install_time_since_midnight_hours', 'tti']])
+        data.loc[data['Fraud_reasons'] == 'bots', features])
     tti_fraud_mu, tti_fraud_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'tti_fraud', ['install_time_since_midnight_hours', 'tti']])
+        data.loc[data['Fraud_reasons'] == 'tti_fraud', features])
     mix_mu, mix_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'mix', ['install_time_since_midnight_hours', 'tti']])
+        data.loc[data['Fraud_reasons'] == 'mix', features])
     data_center_mu, data_center_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'Data center', ['install_time_since_midnight_hours', 'tti']])
+        data.loc[data['Fraud_reasons'] == 'Data center', features])
 
-    data['p_ok'] = multivariateGaussian(data[['install_time_since_midnight_hours', 'tti']],
+    data['p_ok'] = multivariateGaussian(data[features],
                                         ok_mu, ok_sigma)
-    data['p_click_spamming'] = multivariateGaussian(data[['install_time_since_midnight_hours', 'tti']],
+    data['p_click_spamming'] = multivariateGaussian(data[features],
                                                     click_spamming_mu, click_spamming_sigma)
-    data['p_bots'] = multivariateGaussian(data[['install_time_since_midnight_hours', 'tti']],
+    data['p_bots'] = multivariateGaussian(data[features],
                                           bots_mu, bots_sigma)
-    data['p_tti_fraud'] = multivariateGaussian(data[['install_time_since_midnight_hours', 'tti']],
+    data['p_tti_fraud'] = multivariateGaussian(data[features],
                                                tti_fraud_mu, tti_fraud_sigma)
-    data['p_mix'] = multivariateGaussian(data[['install_time_since_midnight_hours', 'tti']],
+    data['p_mix'] = multivariateGaussian(data[features],
                                          mix_mu, mix_sigma)
-    data['p_data_center'] = multivariateGaussian(data[['install_time_since_midnight_hours', 'tti']],
+    data['p_data_center'] = multivariateGaussian(data[features],
                                                  data_center_mu, data_center_sigma)
 
-    data_valid['p_ok'] = multivariateGaussian(data_valid[['install_time_since_midnight_hours', 'tti']],
+    data_valid['p_ok'] = multivariateGaussian(data_valid[features],
                                               ok_mu, ok_sigma)
-    data_valid['p_click_spamming'] = multivariateGaussian(data_valid[['install_time_since_midnight_hours', 'tti']],
+    data_valid['p_click_spamming'] = multivariateGaussian(data_valid[features],
                                                           click_spamming_mu, click_spamming_sigma)
-    data_valid['p_bots'] = multivariateGaussian(data_valid[['install_time_since_midnight_hours', 'tti']],
+    data_valid['p_bots'] = multivariateGaussian(data_valid[features],
                                                 bots_mu, bots_sigma)
-    data_valid['p_tti_fraud'] = multivariateGaussian(data_valid[['install_time_since_midnight_hours', 'tti']],
+    data_valid['p_tti_fraud'] = multivariateGaussian(data_valid[features],
                                                      tti_fraud_mu, tti_fraud_sigma)
-    data_valid['p_mix'] = multivariateGaussian(data_valid[['install_time_since_midnight_hours', 'tti']],
+    data_valid['p_mix'] = multivariateGaussian(data_valid[features],
                                                mix_mu, mix_sigma)
-    data_valid['p_data_center'] = multivariateGaussian(data_valid[['install_time_since_midnight_hours', 'tti']],
+    data_valid['p_data_center'] = multivariateGaussian(data_valid[features],
                                                        data_center_mu, data_center_sigma)
 
     distribution_features = np.array(['p_ok', 'p_click_spamming', 'p_bots', 'p_tti_fraud', 'p_mix', 'p_data_center'])
