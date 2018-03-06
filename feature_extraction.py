@@ -17,12 +17,17 @@ data['install_time'] = pd.to_datetime(data['install_time'])
 data_valid['install_time'] = pd.to_datetime(data_valid['install_time'])
 data['attributed_touch_time'] = pd.to_datetime(data['attributed_touch_time'])
 data_valid['attributed_touch_time'] = pd.to_datetime(data_valid['attributed_touch_time'])
-# data['contributor_1_touch_time'] = pd.to_datetime(data['contributor_1_touch_time'], errors='coerce')
-# data['contributor_2_touch_time'] = pd.to_datetime(data['contributor_2_touch_time'], errors='coerce')
-# data['contributor_3_touch_time'] = pd.to_datetime(data['contributor_3_touch_time'], errors='coerce')
-# data_valid['contributor_1_touch_time'] = pd.to_datetime(data_valid['contributor_1_touch_time'], errors='coerce')
-# data_valid['contributor_2_touch_time'] = pd.to_datetime(data_valid['contributor_2_touch_time'], errors='coerce')
-# data_valid['contributor_3_touch_time'] = pd.to_datetime(data_valid['contributor_3_touch_time'], errors='coerce')
+data['contributor_1_touch_time'] = pd.to_datetime(data['contributor_1_touch_time'], errors='coerce')
+data['contributor_2_touch_time'] = pd.to_datetime(data['contributor_2_touch_time'], errors='coerce')
+data['contributor_3_touch_time'] = pd.to_datetime(data['contributor_3_touch_time'], errors='coerce')
+data_valid['contributor_1_touch_time'] = pd.to_datetime(data_valid['contributor_1_touch_time'], errors='coerce')
+data_valid['contributor_2_touch_time'] = pd.to_datetime(data_valid['contributor_2_touch_time'], errors='coerce')
+data_valid['contributor_3_touch_time'] = pd.to_datetime(data_valid['contributor_3_touch_time'], errors='coerce')
+
+android_versions = pd.read_csv('android_versions.csv', delimiter=',')
+ios_versions = pd.read_csv('ios_versions.csv', delimiter=',')
+android_versions['release_date'] = pd.to_datetime(android_versions['release_date'])
+ios_versions['release_date'] = pd.to_datetime(ios_versions['release_date'])
 
 if config['only_click_touch_type']:
     data = data[data['attributed_touch_type'] == 'click']
@@ -67,39 +72,38 @@ def set_time_features(data, data_valid):
     # data = data.merge(df, left_on='attributed_touch_time_date_hour', right_index=True)
     # data_valid = data_valid.merge(df, left_on='attributed_touch_time_date_hour', right_index=True)
 
-    data['install_time_date_hour'] = data['install_time'].apply(
-        lambda dt: datetime.datetime(dt.year, dt.month, dt.day, dt.hour))
-    data_valid['install_time_date_hour'] = data_valid['install_time'].apply(
-        lambda dt: datetime.datetime(dt.year, dt.month, dt.day, dt.hour))
-    df = pd.DataFrame(index=data['install_time_date_hour'].unique())
-    df['bot_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
-        'Fraud_reasons': lambda x: (x == 'bots').sum()})
-    df['tti_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
-        'Fraud_reasons': lambda x: (x == 'tti_fraud').sum()})
-    df['click_spamming_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
-        'Fraud_reasons': lambda x: (x == 'click_spamming').sum()})
-    df['mix_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
-        'Fraud_reasons': lambda x: (x == 'mix').sum()})
-    df['data_center_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
-        'Fraud_reasons': lambda x: (x == 'Data center').sum()})
-
-    # imitate real-life scenario -- we know only about events one hour ago
-    data['install_time_date_hour'] = data['install_time_date_hour'] - pd.DateOffset(hours=1)
-    data_valid['install_time_date_hour'] = data_valid['install_time_date_hour'] - pd.DateOffset(
-        hours=1)
-    data = data.merge(df, left_on='install_time_date_hour', right_index=True)
-    data_valid = data_valid.merge(df, left_on='install_time_date_hour', right_index=True)
+    # data['install_time_date_hour'] = data['install_time'].apply(
+    #     lambda dt: datetime.datetime(dt.year, dt.month, dt.day, dt.hour))
+    # data_valid['install_time_date_hour'] = data_valid['install_time'].apply(
+    #     lambda dt: datetime.datetime(dt.year, dt.month, dt.day, dt.hour))
+    # df = pd.DataFrame(index=data['install_time_date_hour'].unique())
+    # df['bot_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
+    #     'Fraud_reasons': lambda x: (x == 'bots').sum()})
+    # df['tti_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
+    #     'Fraud_reasons': lambda x: (x == 'tti_fraud').sum()})
+    # df['click_spamming_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
+    #     'Fraud_reasons': lambda x: (x == 'click_spamming').sum()})
+    # df['mix_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
+    #     'Fraud_reasons': lambda x: (x == 'mix').sum()})
+    # df['data_center_frauds_per_hour'] = data.groupby('install_time_date_hour')['Fraud_reasons'].agg({
+    #     'Fraud_reasons': lambda x: (x == 'Data center').sum()})
+    #
+    # # imitate real-life scenario -- we know only about events one hour ago
+    # data['install_time_date_hour'] = data['install_time_date_hour'] - pd.DateOffset(hours=1)
+    # data_valid['install_time_date_hour'] = data_valid['install_time_date_hour'] - pd.DateOffset(
+    #     hours=1)
+    # data = data.merge(df, left_on='install_time_date_hour', right_index=True)
+    # data_valid = data_valid.merge(df, left_on='install_time_date_hour', right_index=True)
 
     data['install_time_weekday'] = data['install_time'].dt.weekday_name
     data_valid['install_time_weekday'] = data_valid['install_time'].dt.weekday_name
 
-
     # data['tti_contributor1'] = (data['install_time']
-    #                             - data_valid['contributor_1_touch_time']).dt.total_seconds()
+    #                             - data['contributor_1_touch_time']).dt.total_seconds()
     # data['tti_contributor2'] = (data['install_time']
-    #                             - data_valid['contributor_2_touch_time']).dt.total_seconds()
+    #                             - data['contributor_2_touch_time']).dt.total_seconds()
     # data['tti_contributor3'] = (data['install_time']
-    #                             - data_valid['contributor_3_touch_time']).dt.total_seconds()
+    #                             - data['contributor_3_touch_time']).dt.total_seconds()
     #
     # data_valid['tti_contributor1'] = (data_valid['install_time']
     #                             - data_valid['contributor_1_touch_time']).dt.total_seconds()
@@ -107,9 +111,25 @@ def set_time_features(data, data_valid):
     #                             - data_valid['contributor_2_touch_time']).dt.total_seconds()
     # data_valid['tti_contributor3'] = (data_valid['install_time']
     #                             - data_valid['contributor_3_touch_time']).dt.total_seconds()
+
+    data['time_diff_contributor1'] = (data['attributed_touch_time']
+                                - data['contributor_1_touch_time']).dt.total_seconds()
+    data['time_diff_contributor2'] = (data['contributor_1_touch_time']
+                                - data['contributor_2_touch_time']).dt.total_seconds()
+    data['time_diff_contributor3'] = (data['contributor_2_touch_time']
+                                - data['contributor_3_touch_time']).dt.total_seconds()
+
+    data_valid['time_diff_contributor1'] = (data_valid['attributed_touch_time']
+                                - data_valid['contributor_1_touch_time']).dt.total_seconds()
+    data_valid['time_diff_contributor2'] = (data_valid['contributor_1_touch_time']
+                                - data_valid['contributor_2_touch_time']).dt.total_seconds()
+    data_valid['time_diff_contributor3'] = (data_valid['contributor_2_touch_time']
+                                - data_valid['contributor_3_touch_time']).dt.total_seconds()
+
     extracted_features_columns = np.array(['time_difference', 'install_time_since_midnight_sec', 'attributed_touch_time_since_midnight_sec',
-                                           'bot_frauds_per_hour', 'tti_frauds_per_hour', 'click_spamming_frauds_per_hour',
-                                           'mix_frauds_per_hour', 'data_center_frauds_per_hour', 'install_time_weekday'])
+                                           # 'bot_frauds_per_hour', 'tti_frauds_per_hour', 'click_spamming_frauds_per_hour','mix_frauds_per_hour', 'data_center_frauds_per_hour',
+                                           'time_diff_contributor1', 'time_diff_contributor2', 'time_diff_contributor3',
+                                           'install_time_weekday'])
                                         # 'tti_contributor1', 'tti_contributor2', 'tti_contributor3'])
 
     return data, data_valid, extracted_features_columns
@@ -129,8 +149,8 @@ def set_fraud_rate_feature(train_df, valid_df, column, mean_fraud, fraud_reason)
     # valid_df[rate_feature_column] = valid_df[rate_feature_column].fillna(0)
     return train_df, valid_df, rate_feature_column
 
-fraud_rates_columns = ['site_id', 'sub_site_id', 'language', 'publisher', 'operator', 'city', 'device_type',
-                       'os_version', 'sdk_version', 'app_id', 'app_version', 'country_code', 'wifi']
+fraud_rates_columns = ['language', 'publisher', 'operator', 'device_type',
+                       'os_version', 'sdk_version', 'app_id', 'app_version', 'wifi']
 def set_fraud_rate_features(data, data_valid, fraud_reason):
     mean_fraud = (data['Fraud_reasons'] == fraud_reason).mean()
     fraud_reason_features_columns = np.array([])
@@ -154,7 +174,8 @@ for fraud_reason in labels['Fraud_reasons'].unique():
 
 if config['standard_scale']:
     scaler = StandardScaler()
-    extracted_features_columns_float = data[extracted_features_columns].dtypes.index.values[data[extracted_features_columns].dtypes == np.float]
+    extracted_features_columns_float = data[extracted_features_columns].dtypes.index.values[
+        (data[extracted_features_columns].dtypes == np.float) & (~data[extracted_features_columns].isnull().any().values)]
     scaler.fit(data[extracted_features_columns_float])
     data[extracted_features_columns_float] = scaler.transform(data[extracted_features_columns_float])
     data_valid[extracted_features_columns_float] = scaler.transform(data_valid[extracted_features_columns_float])
