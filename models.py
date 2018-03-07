@@ -32,14 +32,15 @@ def train_catboost(x_train, y_train, x_valid, y_valid, le):
 
 def train_lgb(x_train, y_train, x_valid, y_valid, le):
     x_train, x_valid = encode_cat_features(x_train, x_valid)
-    lgb_model = lgb.LGBMClassifier(objective='multiclassova', learning_rate=0.02, n_estimators=400, num_iterations=500,
+    lgb_model = lgb.LGBMClassifier(objective='multiclass', learning_rate=0.02, n_estimators=400, num_iterations=1000,
                                num_leaves=100, max_depth=7)
     lgb_model.fit(x_train, y_train, eval_set=[(x_valid, y_valid)], early_stopping_rounds=10)
-    pickle.dump(lgb_model, open("lgb.model", "wb"))
+    pickle.dump(lgb_model, open('lgb.model', 'wb'))
+    lgb_model = pickle.load(open('lgb.model', 'rb'))
     print_metrics(lgb_model, x_valid, y_valid, le)
 
     fig, ax = plt.subplots(figsize=(12, 18))
-    lgb.plot_importance(lgb_model, max_num_features=20, height=0.5, ax=ax)
+    lgb.plot_importance(lgb_model, max_num_features=30, height=0.5, ax=ax)
     plt.savefig('feature_importance_lgb.png', bbox_inches='tight')
 
 # def train_xgb(x_train, y_train, x_valid, y_valid):
