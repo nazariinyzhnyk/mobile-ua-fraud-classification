@@ -4,7 +4,7 @@ from lib import load_data
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
 import datetime
-from scipy.stats import multivariate_normal
+from scipy.stats import multivariate_normal, norm
 
 config = {
     'only_click_touch_type': False,
@@ -12,18 +12,20 @@ config = {
 }
 
 data, data_valid, labels = load_data(valid_size=0.2)
-data['is_fraud'] = ~data['Fraud_reasons'].isnull()
-data_valid['is_fraud'] = ~data_valid['Fraud_reasons'].isnull()
+data.loc[data['Fraud_reasons'].isnull(), 'Fraud_reasons'] = 'ok'
+data_valid.loc[data_valid['Fraud_reasons'].isnull(), 'Fraud_reasons'] = 'ok'
+fraud_reasons = data['Fraud_reasons'].unique()
+
 data['install_time'] = pd.to_datetime(data['install_time'])
 data_valid['install_time'] = pd.to_datetime(data_valid['install_time'])
 data['attributed_touch_time'] = pd.to_datetime(data['attributed_touch_time'])
 data_valid['attributed_touch_time'] = pd.to_datetime(data_valid['attributed_touch_time'])
 data['contributor_1_touch_time'] = pd.to_datetime(data['contributor_1_touch_time'], errors='coerce')
-# data['contributor_2_touch_time'] = pd.to_datetime(data['contributor_2_touch_time'], errors='coerce')
-# data['contributor_3_touch_time'] = pd.to_datetime(data['contributor_3_touch_time'], errors='coerce')
+data['contributor_2_touch_time'] = pd.to_datetime(data['contributor_2_touch_time'], errors='coerce')
+data['contributor_3_touch_time'] = pd.to_datetime(data['contributor_3_touch_time'], errors='coerce')
 data_valid['contributor_1_touch_time'] = pd.to_datetime(data_valid['contributor_1_touch_time'], errors='coerce')
-# data_valid['contributor_2_touch_time'] = pd.to_datetime(data_valid['contributor_2_touch_time'], errors='coerce')
-# data_valid['contributor_3_touch_time'] = pd.to_datetime(data_valid['contributor_3_touch_time'], errors='coerce')
+data_valid['contributor_2_touch_time'] = pd.to_datetime(data_valid['contributor_2_touch_time'], errors='coerce')
+data_valid['contributor_3_touch_time'] = pd.to_datetime(data_valid['contributor_3_touch_time'], errors='coerce')
 
 android_versions = pd.read_csv('android_versions.csv', delimiter=',')
 android_versions['release_date'] = pd.to_datetime(android_versions['release_date'])
@@ -38,14 +40,23 @@ data_valid.loc[data_valid['app_id'] == ios_app_id, 'release_date'] = np.datetime
 
 extracted_features_columns = np.array([])
 
-def estimateGaussian(dataset):
+def estimate_gaussian(dataset):
     mu = np.mean(dataset, axis=0)
     sigma = np.cov(dataset.T)
     return mu, sigma
 
-def multivariateGaussian(dataset, mu, sigma):
+def multivariate_gaussian(dataset, mu, sigma):
     p = multivariate_normal(mean=mu, cov=sigma)
     return p.pdf(dataset)
+
+def estimate_gaussian_series(series):
+    mu = series[~series.isnull()].mean()
+    sigma = series[~series.isnull()].std()
+    return mu, sigma
+
+def univariate_gaussian(series, mu, sigma):
+    p = norm(loc=mu, scale=sigma)
+    return p.pdf(series)
 
 if config['only_click_touch_type']:
     data = data[data['attributed_touch_type'] == 'click']
@@ -136,17 +147,17 @@ def set_time_features(data, data_valid):
 
     data['time_diff_contributor1'] = (data['attributed_touch_time']
                                 - data['contributor_1_touch_time']).dt.total_seconds()
-    # data['time_diff_contributor2'] = (data['contributor_1_touch_time']
-    #                             - data['contributor_2_touch_time']).dt.total_seconds()
-    # data['time_diff_contributor3'] = (data['contributor_2_touch_time']
-    #                             - data['contributor_3_touch_time']).dt.total_seconds()
+    data['time_diff_contributor2'] = (data['contributor_1_touch_time']
+                                - data['contributor_2_touch_time']).dt.total_seconds()
+    data['time_diff_contributor3'] = (data['contributor_2_touch_time']
+                                - data['contributor_3_touch_time']).dt.total_seconds()
 
     data_valid['time_diff_contributor1'] = (data_valid['attributed_touch_time']
                                 - data_valid['contributor_1_touch_time']).dt.total_seconds()
-    # data_valid['time_diff_contributor2'] = (data_valid['contributor_1_touch_time']
-    #                             - data_valid['contributor_2_touch_time']).dt.total_seconds()
-    # data_valid['time_diff_contributor3'] = (data_valid['contributor_2_touch_time']
-    #                             - data_valid['contributor_3_touch_time']).dt.total_seconds()
+    data_valid['time_diff_contributor2'] = (data_valid['contributor_1_touch_time']
+                                - data_valid['contributor_2_touch_time']).dt.total_seconds()
+    data_valid['time_diff_contributor3'] = (data_valid['contributor_2_touch_time']
+                                - data_valid['contributor_3_touch_time']).dt.total_seconds()
 
     data['day_diff_install_release'] = (data['install_time'] -
                                          data['release_date']).dt.total_seconds() // (3600*24)
@@ -157,8 +168,8 @@ def set_time_features(data, data_valid):
     extracted_features_columns = np.array(['tti', 'install_time_since_midnight_hours',
                                            # 'bot_frauds_per_hour', 'tti_frauds_per_hour', 'click_spamming_frauds_per_hour','mix_frauds_per_hour', 'data_center_frauds_per_hour',
                                            'time_diff_contributor1', #, 'time_diff_contributor2', 'time_diff_contributor3',
-                                           'install_time_weekday', 'day_diff_install_release'])
-                                        # 'tti_contributor1', 'tti_contributor2', 'tti_contributor3'])
+                                           'install_time_weekday', 'day_diff_install_release',
+                                        'time_diff_contributor1', 'time_diff_contributor2', 'time_diff_contributor3'])
 
     return data, data_valid, extracted_features_columns
 
@@ -214,47 +225,21 @@ extracted_features_columns = np.concatenate((extracted_features_columns, cat_fea
 
 def set_distribution_features(data, data_valid):
     trustworthy_publisher_marker = (data['publisher'] == 'AX') | (data['publisher'] == 'AG')
-    features = ['tti']
-    ok_mu, ok_sigma = estimateGaussian(
-        data.loc[trustworthy_publisher_marker, features])
-    click_spamming_mu, click_spamming_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'click_spamming', features])
-    bots_mu, bots_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'bots', features])
-    tti_fraud_mu, tti_fraud_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'tti_fraud', features])
-    mix_mu, mix_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'mix', features])
-    data_center_mu, data_center_sigma = estimateGaussian(
-        data.loc[data['Fraud_reasons'] == 'Data center', features])
+    distribution_features = np.array([])
+    features = ['tti', 'day_diff_install_release', 'time_diff_contributor1', 'time_diff_contributor2', 'time_diff_contributor3']
+    fraud_reasons_without_ok = np.array([x for x in fraud_reasons if x != 'ok'])
+    for feature in features:
+        mu, sigma = estimate_gaussian_series(data.loc[trustworthy_publisher_marker, feature])
+        data[feature + '_p_ok'] = univariate_gaussian(data[feature], mu, sigma)
+        data_valid[feature + '_p_ok'] = univariate_gaussian(data_valid[feature], mu, sigma)
+        distribution_features = np.concatenate((distribution_features, np.array([feature + '_p_ok'])))
 
-    data['p_ok'] = multivariateGaussian(data[features],
-                                        ok_mu, ok_sigma)
-    data['p_click_spamming'] = multivariateGaussian(data[features],
-                                                    click_spamming_mu, click_spamming_sigma)
-    data['p_bots'] = multivariateGaussian(data[features],
-                                          bots_mu, bots_sigma)
-    data['p_tti_fraud'] = multivariateGaussian(data[features],
-                                               tti_fraud_mu, tti_fraud_sigma)
-    data['p_mix'] = multivariateGaussian(data[features],
-                                         mix_mu, mix_sigma)
-    data['p_data_center'] = multivariateGaussian(data[features],
-                                                 data_center_mu, data_center_sigma)
+        for fraud_reason in fraud_reasons_without_ok:
+            mu, sigma = estimate_gaussian_series(data.loc[data['Fraud_reasons'] == fraud_reason, feature])
+            data[feature + '_p_' + fraud_reason] = univariate_gaussian(data[feature], mu, sigma)
+            data_valid[feature + '_p_' + fraud_reason] = univariate_gaussian(data_valid[feature], mu, sigma)
+            distribution_features = np.concatenate((distribution_features, np.array([feature + '_p_' + fraud_reason])))
 
-    data_valid['p_ok'] = multivariateGaussian(data_valid[features],
-                                              ok_mu, ok_sigma)
-    data_valid['p_click_spamming'] = multivariateGaussian(data_valid[features],
-                                                          click_spamming_mu, click_spamming_sigma)
-    data_valid['p_bots'] = multivariateGaussian(data_valid[features],
-                                                bots_mu, bots_sigma)
-    data_valid['p_tti_fraud'] = multivariateGaussian(data_valid[features],
-                                                     tti_fraud_mu, tti_fraud_sigma)
-    data_valid['p_mix'] = multivariateGaussian(data_valid[features],
-                                               mix_mu, mix_sigma)
-    data_valid['p_data_center'] = multivariateGaussian(data_valid[features],
-                                                       data_center_mu, data_center_sigma)
-
-    distribution_features = np.array(['p_ok', 'p_click_spamming', 'p_bots', 'p_tti_fraud', 'p_mix', 'p_data_center'])
     return data, data_valid, distribution_features
 
 data, data_valid, distribution_features = set_distribution_features(data, data_valid)
