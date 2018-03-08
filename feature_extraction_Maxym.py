@@ -60,6 +60,7 @@ def estimate_gaussian_series(series):
 def univariate_gaussian(series, mu, sigma):
     p = norm(loc=mu, scale=sigma)
     return p.pdf(series)
+    #return norm.rvs(loc=0, scale=1, size=len(series))
 
 if config['only_click_touch_type']:
     data = data[data['attributed_touch_type'] == 'click']
@@ -119,14 +120,15 @@ extracted_features_columns = np.concatenate((extracted_features_columns, time_fe
 def set_categorical_fetures(data, data_valid):
     data['wifi'] = data['wifi'].astype(str)
     data_valid['wifi'] = data_valid['wifi'].astype(str)
-    cat_features = np.array(['wifi'])
+    cat_features = np.array(['language', 'publisher', 'operator', 'device_type',
+                             'os_version', 'sdk_version', 'app_id', 'app_version', 'wifi'])
 
     return data, data_valid, cat_features
 
 data, data_valid, cat_features = set_categorical_fetures(data, data_valid)
 extracted_features_columns = np.concatenate((extracted_features_columns, cat_features))
 
-
+"""
 def set_distribution_features(data, data_valid):
     # trustworthy_publisher_marker = data['publisher'].isin(['AX', 'AG'])
     trustworthy_publisher_marker = data['Fraud_reasons'] == 'ok'
@@ -151,15 +153,7 @@ def set_distribution_features(data, data_valid):
 
 data, data_valid, distribution_features = set_distribution_features(data, data_valid)
 extracted_features_columns = np.concatenate((extracted_features_columns, distribution_features))
-
-
-if config['standard_scale']:
-    scaler = StandardScaler()
-    extracted_features_columns_float = data[extracted_features_columns].dtypes.index.values[
-        (data[extracted_features_columns].dtypes == np.float) & (~data[extracted_features_columns].isnull().any().values)]
-    scaler.fit(data[extracted_features_columns_float])
-    data[extracted_features_columns_float] = scaler.transform(data[extracted_features_columns_float])
-    data_valid[extracted_features_columns_float] = scaler.transform(data_valid[extracted_features_columns_float])
+"""
 
 extracted_features_columns = np.concatenate((extracted_features_columns, np.array(['Fraud_reasons'])))
 extracted_features_train = data[extracted_features_columns]
@@ -168,14 +162,3 @@ extracted_features_train.to_csv('extracted_features_train.csv', sep=';', index=F
 extracted_features_valid = data_valid[extracted_features_columns]
 extracted_features_valid.to_csv('extracted_features_valid.csv', sep=';', index=False, encoding='utf-8')
 
-"""
-По структурі презентації, що було б добре згадати:
-1. Завдання.
-2. Цінність для бізнесу (який вклад вносите, що це змінить, як це допоможе більше заробляти)
-3. Дані, які у вас були.
-4. Які методи пробували, технології, що вийшло, не вийшло, з демонстрацією графіків результатів.
-5. Результати по метрикам з поясненням метрик, якщо це не очевидно, інсайти які винесли.
-6. Щоб могли ще зробити, які ідеї не вдалось реалізувати.
-7. Команда, хто і що робив.
-8. Чого для себе винесли, навчились (за бажанням)
-"""
